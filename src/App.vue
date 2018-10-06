@@ -20,6 +20,7 @@
       <p>Octave: {{octave}}</p>
       <p>mousePressed: {{mousePressed}}</p>
     </div>
+    <button type="button" @click="test">Test</button>
   </div>
 </template>
 
@@ -56,8 +57,44 @@ export default {
       mousePressed: false
     }
   },
-  computed: {},
+  computed: {
+    synth () {
+      var synth = new Tone.Synth()
+      synth.oscillator.type = this.oscillator.osc.shape
+      const oscEnv = this.oscillator.env
+      for (let prop in oscEnv) {
+        synth.envelope[prop] = oscEnv[prop]
+      }
+      return synth
+    },
+    currentFilter () {
+      let filtParam = this.filter.filter
+      var filter = new Tone.Filter(filtParam.freq, filtParam.type)
+      return filter
+    },
+    chain () {
+      let chain = [this.synth, this.currentFilter]
+      if (this.fx1.power) {
+        chain.push(this.fx1)
+      }
+      if (this.fx2.power) {
+        chain.push(this.fx2)
+      }
+      for(let i = 0; i < chain.length; i++) {
+        if (i === chain.length - 1) {
+          chain[i].toMaster()
+          return chain[i]
+        } else {
+          chain[i].connect(chain[i+1])
+        }
+      }
+    }
+  },
   methods: {
+    test(){
+      console.log(this.synth)
+      this.synth.triggerAttackRelease('C4', 0.4)
+    },
     oscChange (oscObj) {
       this.oscillator.osc = oscObj
     },
