@@ -19,7 +19,7 @@ export default {
   data () {
     return {
       shapes: ['sine', 'triangle', 'square', 'sawtooth'],
-      shapeSelect: 0
+      shapeSelect: 1
     }
   },
   computed: {
@@ -31,10 +31,10 @@ export default {
   },
   watch: {
     currentOsc: {
-      handler (newVal, oldVal) {
+      handler (newVal) {
         this.$emit('osc-change', newVal)
       },
-      immediate: true
+      deep: true
     }
   }
 }

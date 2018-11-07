@@ -6,6 +6,10 @@ export default {
     mapBetween2Dec(value, minIn, maxIn, minOut, maxOut) {
       let result = (value - minIn) * (maxOut - minOut) / (maxIn - minIn) + minOut
       return Number(result.toFixed(2))
+    },
+    mapBetween4Dec(value, minIn, maxIn, minOut, maxOut) {
+      let result = (value - minIn) * (maxOut - minOut) / (maxIn - minIn) + minOut
+      return Number(result.toFixed(4))
     }
   }
 }

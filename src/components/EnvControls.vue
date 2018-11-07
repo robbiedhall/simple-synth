@@ -5,31 +5,28 @@
     </div>
     <div class="display display-slot">
       <div class="screen display-screen" :id="`${target}-env-screen`">
-        <div class="attack" :style="{minWidth: envScreenStyle.attack + 'px'}">
-        </div>
-        <div class="decay" :style="{minWidth: envScreenStyle.decay + 'px'}">
-        </div>
-        <div class="sustain" :style="{minWidth: envScreenStyle.sustain + 'px'}">
-        </div>
-        <div class="release" :style="{minWidth: envScreenStyle.release + 'px'}">
-        </div>
+        <EnvelopeDisplay class="envelope-display" :env="env" @display-mounted="calcSize" :size="compSize" :target="target"/>
       </div>
     </div>
     <div class="sliders is-spaced">
-      <input class="clickable" type="range" min="1" max="1000" orient="vertical" v-model="env.attack">
-      <input class="clickable" type="range" min="1" max="1000" orient="vertical" v-model="env.decay">
-      <input class="clickable" type="range" min="1" max="1000" orient="vertical" v-model="env.sustain">
-      <input class="clickable" type="range" min="1" max="1000" orient="vertical" v-model="env.release">
+      <input class="clickable" type="range" min="1" max="40" orient="vertical" v-model="env.attack">
+      <input class="clickable" type="range" min="1" max="40" orient="vertical" v-model="env.decay">
+      <input class="clickable" type="range" min="1" max="40" orient="vertical" v-model="env.sustain">
+      <input class="clickable" type="range" min="1" max="40" orient="vertical" v-model="env.release">
     </div>
   </div>
 </template>
 <script>
 import Env from '@/mixins/env.js'
 import Map from '@/mixins/map.js'
+import EnvelopeDisplay from './EnvelopeDisplay.vue'
 export default {
   name: 'EnvControls',
   mixins: [ Env, Map ],
-  props : {
+  components: {
+    EnvelopeDisplay
+  },
+  props: {
     target: {
       type: String,
       required: true
@@ -37,13 +34,24 @@ export default {
   },
   data () {
     return {
-      env: {
-        attack: 500,
-        decay: 500,
-        sustain: 500,
-        release: 500
+      displaySize: {}
+    }
+  },
+  methods: {
+    calcSize () {
+      const display = document.getElementById(this.target + '-display')
+      this.displaySize = {
+        width: display.clientWidth,
+        height: display.clientHeight
       }
     }
+  },
+  computed: {
+    compSize () {
+      return this.displaySize
+    }
+  },
+  mounted () {
   }
 }
 </script>
@@ -74,16 +82,13 @@ export default {
 .screen {
   display: flex;
 }
-.attack {
-  background: blue;
+.envelope-display {
+flex: 1;
 }
-.decay {
-    background: green;
-}
-.sustain {
-  background: purple;
-}
-.release {
-  background: yellow;
+.sliders input[orient=vertical] {
+  width: 10px;
+  height: 44px;
+  writing-mode: bt-lr; /* IE */
+  -webkit-appearance: slider-vertical; /* WebKit */
 }
 </style>

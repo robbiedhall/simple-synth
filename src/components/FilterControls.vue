@@ -6,11 +6,11 @@
     <div class="frequency-controls il-grid">
       <div class="frequency-display display-slot">
         <div class="frequency-screen display-screen is-center">
-          {{currentFilter.freq}}Hz
+          {{currentFilter.frequency}}Hz
         </div>
       </div>
       <div class="frequency-slider is-center">
-        <input class="clickable" type="range" min="1" max="1000" orient="vertical" v-model="freq">
+        <input class="clickable" type="range" min="1" max="64" orient="vertical" v-model="freq">
       </div>
     </div>
     <div class="type-controls il-grid">
@@ -19,7 +19,7 @@
           {{currentFilter.type}}
         </div>
       </div>
-      <input class="type-slider clickable" type="range" min="0" max="2" v-model="typeSelect">
+      <input class="type-slider clickable" type="range" min="0" max="3" v-model="typeSelect">
     </div>
   </div>
 </template>
@@ -30,49 +30,24 @@ export default {
   mixins: [ Map ],
   data () {
     return {
-      types: ["lowpass", "highpass", "bandpass"],
+      types: ["lowpass", "highpass", "bandpass", 'peaking'],
       typeSelect: 0,
-      freq: 1000
+      freq: 42
     }
   },
   computed: {
-    scaleFilterFreq () {
+    scaleFilterFreq() {
       const freqSlide = this.freq
-      let inMin
-      let inMax
-      let outMin
-      let outMax
-      if (freqSlide <= 100) {
-        inMin = 1
-        inMax = 100
-        outMin = 1
-        outMax = 30
-      } else if (freqSlide <= 200) {
-        inMin = 101
-        inMax = 200
-        outMin = 31
-        outMax = 100
-      } else if (freqSlide <=500) {
-        inMin = 201
-        inMax = 500
-        outMin = 100
-        outMax = 1000
-      } else if (freqSlide <= 800) {
-        inMin = 501
-        inMax = 800
-        outMin = 1001
-        outMax = 10000
-      } else {
-        inMin = 801
-        inMax = 1000
-        outMin = 10001
-        outMax = 22000
-      }
-      return this.mapBetween(freqSlide, inMin, inMax, outMin, outMax)
+      const minp = 1
+      const maxp = 64
+      const minv = Math.log(40)
+      const maxv = Math.log(22000)
+      const scale = (maxv-minv) / (maxp-minp)
+      return Math.floor(Math.exp(minv + scale * (freqSlide-minp)))
     },
     currentFilter () {
       return {
-        freq: this.scaleFilterFreq,
+        frequency: this.scaleFilterFreq,
         type: this.types[this.typeSelect]
       }
     }
@@ -80,9 +55,15 @@ export default {
   watch: {
     currentFilter: {
       handler (newVal, oldVal) {
-        this.$emit('filter-change', newVal)
+        let targetProp
+        for (let prop in newVal) {
+          if (newVal[prop] !== oldVal[prop]) {
+            targetProp = prop
+            this.$emit('filter-change', targetProp, newVal[targetProp])
+          }
+        }
       },
-      immediate: true
+      deep: true
     }
   }
 }

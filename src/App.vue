@@ -1,24 +1,28 @@
 <template>
-  <div id="app" draggable="false" class="il-grid" @mouseover="mousePress === false">
+  <div id="app" draggable="false" class="il-grid">
     <div draggable="false" class="synth-body il-grid">
       <div class="main-logo is-center">
         RH-A001
       </div>
       <OscControls class="osc-slot" @osc-change="oscChange"/>
-      <EnvControls :target="`oscillator`" class="osc-env" @env-change="envChange"/>
+      <EnvControls :target="`osc`" class="osc-env" @env-change="envChange"/>
       <FilterControls class="filter-slot" @filter-change="filterChange"/>
       <EnvControls :target="`filter`" class="filter-env" @env-change="envChange"/>
-      <FXControls :fxSlot="1" class="fx1" @fx-change="fxChange"/>
-      <FXControls :fxSlot="2" class="fx2" @fx-change="fxChange"/>
-      <Keyboard :mousePressed="mousePressed":octave="octave" class="keyboard" @keybed-click="keybedClick"/>
+      <FXControls :fxSlot="1" :fx="synth[`fx1`]" class="fx1" @fx-power-change="fxPowerChange" @af-param-change="afParamChange"/>
+      <FXControls :fxSlot="2" :fx="synth[`fx2`]" class="fx2" @fx-power-change="fxPowerChange" @af-param-change="afParamChange"/>
+      <OctaveControls @change-octave="changeOctave" :octave="octave"/>
+      <Keyboard :mousePressed="mousePressed" :octave="octave" class="keyboard" @keybed-click="keybedClick" @keybed-release="triggerSynthRelease" @key-drag="keyDrag"/>
     </div>
     <div class="debug is-centre">
-      <p>Oscillator: {{oscillator}}</p>
-      <p>Filter: {{filter}}</p>
-      <p>FX1: {{fx1}}</p>
-      <p>FX2: {{fx2}}</p>
+      <p>Oscillator: {type: {{this.synth.osc ? this.synth.osc.type : ''}}}</p>
+      <p>Filter:  {type: {{this.synth.filter ? this.synth.filter.type : ''}}, frequency: {{this.synth.filter ? this.synth.filter.frequency.value : ''}} }</p>
+      <p>FX1: </p>
+      <p>FX2: </p>
       <p>Octave: {{octave}}</p>
       <p>mousePressed: {{mousePressed}}</p>
+      <p>trigger: {{trigger}}</p>
+      <p>filter: {{synth.filter && synth.filter.frequency ? synth.filter.frequency.value : ''}}</p>
+      <p>filterEnv: </p>
     </div>
     <button type="button" @click="test">Test</button>
   </div>
@@ -30,7 +34,9 @@ import OscControls from '@/components/OscControls'
 import EnvControls from '@/components/EnvControls'
 import FilterControls from '@/components/FilterControls'
 import FXControls from '@/components/FXControls'
+import OctaveControls from '@/components/OctaveControls'
 import Keyboard from '@/components/Keyboard.vue'
+import Map from '@/mixins/map'
 export default {
   name: 'app',
   components: {
@@ -38,103 +44,169 @@ export default {
     FilterControls,
     EnvControls,
     FXControls,
+    OctaveControls,
     Keyboard
   },
+  mixins: [ Map ],
   data() {
     return {
-      oscillator: {
-        osc: {},
-        env: {}
+      synth: {
+        osc: null,
+        oscEnv: null,
+        filter: null,
+        filterEnv: null,
+        fx1: {
+          type: 'autofilter',
+          fx: null
+        },
+        fx1pow: false,
+        fx2: {
+          type: null,
+          fx: null
+        },
+        fx2pow: false,
+        lastInChain: 'filter',
+        master: null,
       },
-      filter: {
-        filter: {},
-        env: {}
-      },
-      fx1: {},
-      fx2: {},
       octave: 3,
       keys: {},
-      mousePressed: false
-    }
-  },
-  computed: {
-    synth () {
-      var synth = new Tone.Synth()
-      synth.oscillator.type = this.oscillator.osc.shape
-      const oscEnv = this.oscillator.env
-      for (let prop in oscEnv) {
-        synth.envelope[prop] = oscEnv[prop]
-      }
-      return synth
-    },
-    currentFilter () {
-      let filtParam = this.filter.filter
-      var filter = new Tone.Filter(filtParam.freq, filtParam.type)
-      return filter
-    },
-    chain () {
-      let chain = [this.synth, this.currentFilter]
-      if (this.fx1.power) {
-        chain.push(this.fx1)
-      }
-      if (this.fx2.power) {
-        chain.push(this.fx2)
-      }
-      for(let i = 0; i < chain.length; i++) {
-        if (i === chain.length - 1) {
-          chain[i].toMaster()
-          return chain[i]
-        } else {
-          chain[i].connect(chain[i+1])
-        }
-      }
+      mousePressed: false,
+      keyClick: false,
+      trigger: false
     }
   },
   methods: {
-    test(){
-      console.log(this.synth)
-      this.synth.triggerAttackRelease('C4', 0.4)
+    test () {
+
+    },
+    afParamChange(params, fxSlot) {
+      this.synth[fxSlot].fx.stop()
+      this.synth[fxSlot].fx = new Tone.AutoFilter({frequency: params.frequency, type: params.type, q: params.q})
+      this.synth[fxSlot].fx.start()
+      this.connectToOutput()
+    },
+    createSynth () {
+      let s = this.synth
+      s['osc'] = new Tone.Oscillator()
+      s.osc.type = 'triangle'
+      s['oscEnv'] = new Tone.AmplitudeEnvelope({
+        "attack": 0.005,
+        "decay": 4.35,
+        "sustain": 0.55,
+        "release": 0.013
+      })
+      s.osc.connect(s.oscEnv)
+      s['filter'] = new Tone.Filter().toMaster()
+      s.filter.frequency.value = 22000
+      s.oscEnv.connect(s.filter)
+      s['filterEnv'] = new Tone.FrequencyEnvelope({
+          "attack": 0.005,
+          "decay": 4.35,
+          "sustain": 0.55,
+          "release": 4.35,
+          "baseFrequency": s.filter.frequency.value,
+          "octaves": 3
+        }
+      )
+      s.filterEnv.connect(s.filter.frequency)
+      s['master'] = Tone.Master
+      s.master.volume.volume = -60
+      s['fx1'].fx = new Tone.AutoFilter('4n').start()
+      s['fx2'].fx = new Tone.AutoFilter('4n').start()
     },
     oscChange (oscObj) {
-      this.oscillator.osc = oscObj
+      this.synth.osc.stop()
+      this.synth.osc.type = oscObj.shape
+      this.synth.osc.start()
     },
-    filterChange(filterObj) {
-      this.filter.filter = filterObj
+    filterChange(prop, val) {
+      if (prop === 'type'){
+        this.synth.filter[prop] = val
+      } else if (prop === 'frequency'){
+        this.synth.filter[prop].value = val
+        this.synth.filterEnv.baseFrequency = val
+      }
     },
-    envChange (target, envObj) {
-      this[target].env = envObj
+    envChange (targetEnv, targetProp, val) {
+      this.synth[`${targetEnv}Env`][targetProp] = val
     },
-    fxChange (target, fxObj) {
-      this[target] = fxObj
+    connectToOutput() {
+      let s = this.synth
+      if (s.fx1pow && s.fx2pow) {
+        s.filter.disconnect()
+        s.filter.connect(s.fx1.fx)
+        s.fx1.fx.connect(s.fx2.fx)
+        s.fx2.fx.toMaster()
+      } else if (s.fx1pow) {
+        s.filter.disconnect()
+        s.filter.connect(s.fx1.fx)
+        s.fx1.fx.toMaster()
+      } else if (s.fx2pow) {
+        s.filter.disconnect()
+        s.filter.connect(s.fx2.fx)
+        s.fx2.fx.toMaster()
+      } else {
+        s.filter.disconnect()
+        s.filter.toMaster()
+      }
     },
-    keybedClick(note) {
-    // TODO Decide how to best handle sustain / slide over the keybed while clicking
+    fxPowerChange (target, powerBool) {
+        let s = this.synth
+        s[`${target}pow`] = powerBool
+        this.connectToOutput()
     },
-    mousePress(event) {
+    changeOctave(dir) {
+      this.octave += dir
+      if (this.octave < 0) {
+        this.octave = 0
+      }
+      if (this.octave > 9) {
+        this.octave = 9
+      }
+    },
+    triggerSynthAttack (note) {
+      if (note){
+        this.synth.osc.frequency.value = note
+      }
+      this.synth.osc.start()
+      this.synth.oscEnv.triggerAttack()
+      this.synth.filterEnv.triggerAttack()
+    },
+    triggerSynthRelease () {
+      this.synth.oscEnv.triggerRelease()
+      this.synth.filterEnv.triggerRelease()
+    },
+    keybedClick (note) {
+      this.triggerSynthAttack(note)
+    },
+    keyDrag (note) {
+      this.synth.osc.start()
+      this.triggerSynthAttack(note)
+    },
+    mousePress(){
       this.mousePressed = true
     },
-    mouseRelease(event) {
+    mouseRelease() {
       this.mousePressed = false
     },
     keyPress (event) {
       //Controls the keyboard octave - KEYS Z and X
       if (event.keyCode === 90 && this.octave > 0) {
           this.octave--
-      } else if (event.keyCode === 88 && this.octave < 9 ) {
+      } else if (event.keyCode === 88 && this.octave < 8 ) {
         this.octave++
       } else {
         const keys = this.keys
         const note = this.keyToNote(event.keyCode)
         if (!note) {
-          console.log('invalid key pressed')
           return
         }
         if (keys[note]){
           // Sustain
         } else {
           //New note press
-          this.playSynth(note)
           this.$set(this.keys, note, true)
+          this.triggerSynthAttack(note)
         }
       }
     },
@@ -144,6 +216,7 @@ export default {
       if (keys[note]) {
         // New key release
         this.$set(this.keys, note, false)
+        this.triggerSynthRelease()
       }
     },
     keyToNote(keyCode) {
@@ -189,15 +262,27 @@ export default {
       }
     }
   },
-  mounted() {
-    const app = document.getElementById('app')
-    app.addEventListener('mousedown', this.mousePress)
-    app.addEventListener('mouseup', this.mouseRelease)
+  created() {
+    window.addEventListener('mousedown', this.mousePress)
+    window.addEventListener('mouseup', this.mouseRelease)
+    window.addEventListener('keydown', this.keyPress)
+    window.addEventListener('keyup', this.keyRelease)
+    this.createSynth()
+
+  },
+  mounted () {
+
+  },
+  computed: {
+    tester () {
+      return this
+    }
   },
   beforeDestroy() {
-    const app = document.getElementById('app')
-    app.removeEventListener('mousedown', this.mousePress)
-    app.removeEventListener('mouseup', this.mouseRelease)
+    window.removeEventListener('mousedown', this.mousePress)
+    window.removeEventListener('mouseup', this.mouseRelease)
+    window.removeEventListener('keydown', this.keyPress)
+    window.removeEventListener('keyup', this.keyRelease)
   }
 }
 </script>
@@ -294,6 +379,10 @@ export default {
 .keyboard {
   grid-row: 8/13;
   grid-column: 2/12;
+}
+.octave-controls {
+  grid-row: 7 / 8;
+  grid-column: 9 / 13;
 }
 .debug {
   padding: 10px;

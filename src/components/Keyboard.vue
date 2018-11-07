@@ -1,24 +1,23 @@
 <template>
   <div class="keybed il-grid" id="keybed" draggable="false">
-    <div class="octave-display">
-      {{octave}}
-    </div>
     <div class="white-keys il-grid" draggable="false">
-      <div v-for="(whiteKeys, i) in 14"
+      <div v-for="(whiteKeys, i) in 15"
         draggable="false"
-        class="white-key" :key="i"
-        @click="keybedClick(`white${i}`)"
+        class="white-key key" :key="i" :id="`white${i}`"
+        @mousedown="keybedClick(`white${i}`)"
         @mouseover="mouseOverKey(`white${i}`)"
+        @mouseup="keybedRelease(`white${i}`)"
         >
       </div>
     </div>
     <div class="black-keys il-grid" draggable="false">
-      <div v-for="(blackKeys, j) in 13"
+      <div v-for="(blackKeys, j) in 14"
         draggable="false"
-        class="black-key" :key="j"
+        class="black-key key " :key="j" :id="`black${j}`"
         :class="{'invisible' : amInvisible(j)}"
-        @click="keybedClick(`black${j}`)"
+        @mousedown="keybedClick(`black${j}`)"
         @mouseover="mouseOverKey(`black${j}`)"
+        @mouseup="keybedRelease(`black${j}`)"
         >
       </div>
     </div>
@@ -38,7 +37,7 @@ export default {
   methods: {
     mouseOverKey(key) {
       if (this.mousePressed) {
-        this.keybedClick(key)
+        this.$emit('key-drag', this.keybedClickCheck(key))
       }
     },
     amInvisible(ind) {
@@ -46,6 +45,7 @@ export default {
         case 2:
         case 6:
         case 9:
+        case 13: true
           return true
         default:
           return false
@@ -56,6 +56,9 @@ export default {
       if (check) {
         this.$emit('keybed-click', check)
       }
+    },
+    keybedRelease(releasedKey) {
+      this.$emit('keybed-release')
     },
     keybedClickCheck(clickedKey) {
       switch(clickedKey) {
@@ -107,6 +110,8 @@ export default {
           return `A#${this.octave+1}`
         case 'white13':
           return `B${this.octave+1}`
+        case 'white14':
+          return `C${this.octave+2}`
           //Invisble key clicks go here. Might need some clever click event calcs to decide which which note to trigger
         default:
           return null
@@ -124,7 +129,7 @@ export default {
   grid-column: 1 / 2;
   grid-row: 1 / 6;
   grid-template-rows: 1fr;
-  grid-template-columns: repeat(14, 1fr);
+  grid-template-columns: repeat(15, 1fr);
 }
 .white-key {
   color: black;
@@ -132,13 +137,13 @@ export default {
   border: 1px solid black;
 }
 .black-keys {
-  padding-left: 25px;
-  padding-right: 25px;
+  padding-left: 20px;
+  padding-right: 20px;
   grid-column: 1 / 2;
   grid-row: 1 / 4;
   z-index: 2;
   grid-template-rows: 1fr;
-  grid-template-columns: repeat(13, 1fr);
+  grid-template-columns: repeat(14, 1fr);
 }
 .black-key {
   margin-left:5px;
@@ -146,5 +151,8 @@ export default {
   color: white;
   background: black;
   border-radius: 0 0 10px 10px;
+}
+.key:hover {
+  border: 3px solid red;
 }
 </style>
